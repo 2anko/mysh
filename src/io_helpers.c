@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include "io_helpers.h"
 
@@ -45,7 +46,7 @@ ssize_t get_input(char *in_ptr) {
             return total;
         }
 
-        if (r < 0) { // read error
+        if (r < 0) { // read error (including EINTR from SIGINT)
             in_ptr[0] = '\0';
             return -1;
         }

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "variables.h"
+#include "io_helpers.h"
 
 // Linked list node structure
 typedef struct Variable {
@@ -52,48 +53,54 @@ char *get_variable(const char *key) {
 void expand_input(char *dest, const char *src, size_t max_len) {
     size_t src_idx = 0;
     size_t dest_idx = 0;
+    size_t token_len = 0;  /* chars written in the current whitespace-delimited token */
 
     while (src[src_idx] != '\0' && dest_idx < max_len) {
         if (src[src_idx] == '$') {
-            // Start of variable expansion
-            src_idx++; // Skip '$'
-            
-            // Extract variable name
-            char var_name[128]; // Temp buffer for name
+            src_idx++; /* skip '$' */
+
+            /* Extract variable name */
+            char var_name[129];
             size_t name_len = 0;
-            
-            // Read until whitespace, null, or another '$'
-            while (src[src_idx] != '\0' && 
-                   src[src_idx] != ' ' && 
-                   src[src_idx] != '\t' && 
-                   src[src_idx] != '\n' && 
+            while (src[src_idx] != '\0' &&
+                   src[src_idx] != ' '  &&
+                   src[src_idx] != '\t' &&
+                   src[src_idx] != '\n' &&
                    src[src_idx] != '$') {
-                if (name_len < 127) {
-                    var_name[name_len++] = src[src_idx];
-                }
+                if (name_len < 128) var_name[name_len++] = src[src_idx];
                 src_idx++;
             }
             var_name[name_len] = '\0';
 
-            // Get value and append to dest
+            /* Append expanded value, enforcing per-token 128-char limit */
             char *val = get_variable(var_name);
-            size_t val_len = strlen(val);
-            
-            for (size_t k = 0; k < val_len; k++) {
-                if (dest_idx < max_len) {
-                    dest[dest_idx++] = val[k];
+            for (size_t k = 0; val[k] != '\0'; k++) {
+                char c = val[k];
+                if (c == ' ' || c == '\t' || c == '\n') {
+                    token_len = 0;
+                    if (dest_idx < max_len) dest[dest_idx++] = c;
+                } else {
+                    if (token_len < (size_t)MAX_STR_LEN) {
+                        if (dest_idx < max_len) dest[dest_idx++] = c;
+                        token_len++;
+                    }
+                    /* else: token exceeds 128 chars — truncate (skip char) */
                 }
             }
         } else {
-            // Regular character, just copy
-            dest[dest_idx++] = src[src_idx++];
+            char c = src[src_idx++];
+            if (c == ' ' || c == '\t' || c == '\n') {
+                token_len = 0;
+                if (dest_idx < max_len) dest[dest_idx++] = c;
+            } else {
+                if (token_len < (size_t)MAX_STR_LEN) {
+                    if (dest_idx < max_len) dest[dest_idx++] = c;
+                    token_len++;
+                }
+            }
         }
     }
-    
-    // Ensure null termination
-    if (dest_idx < max_len) {
-        dest[dest_idx] = '\0';
-    } else {
-        dest[max_len] = '\0'; // Truncate if full
-    }
+
+    if (dest_idx < max_len) dest[dest_idx] = '\0';
+    else dest[max_len] = '\0';
 }
